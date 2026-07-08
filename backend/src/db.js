@@ -13,6 +13,8 @@ export async function connectDb() {
     });
     uri = memoryServer.getUri('upimesh');
     console.log('Using in-memory MongoDB replica set (zero setup, like H2)');
+  } else if (!uri) {
+    throw new Error('MONGODB_URI environment variable is required when USE_IN_MEMORY_DB is false');
   }
 
   await mongoose.connect(uri);
