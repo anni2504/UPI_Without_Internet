@@ -90,9 +90,14 @@ router.post('/mesh/flush', async (_req, res) => {
   });
 });
 
+import { resetMockDb } from '../models/dbMock.js';
+
 router.post('/mesh/reset', (_req, res) => {
   meshSimulatorService.resetMesh();
   idempotencyService.clear();
+  if (global.useMockDb) {
+    resetMockDb();
+  }
   res.json({ status: 'mesh and idempotency cache cleared' });
 });
 

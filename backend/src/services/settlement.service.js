@@ -3,11 +3,13 @@ import { Account } from '../models/Account.js';
 import { Transaction, nextTransactionId } from '../models/Transaction.js';
 
 function toDecimal128(value) {
-  return mongoose.Types.Decimal128.fromString(Number(value).toFixed(2));
+  return global.useMockDb
+    ? value
+    : mongoose.Types.Decimal128.fromString(Number(value).toFixed(2));
 }
 
 function decimalToNumber(value) {
-  return parseFloat(value.toString());
+  return global.useMockDb ? value : parseFloat(value.toString());
 }
 
 export async function settle(instruction, packetHash, bridgeNodeId, hopCount) {
@@ -16,8 +18,13 @@ export async function settle(instruction, packetHash, bridgeNodeId, hopCount) {
     throw new Error('Amount must be positive');
   }
 
-  const session = await mongoose.startSession();
-  session.startTransaction();
+  const session = global.useMockDb
+    ? { startTransaction: () => {}, commitTransaction: () => {}, abortTransaction: () => {}, endSession: () => {} }
+    : await mongoose.startSession();
+
+  if (!global.useMockDb) {
+    session.startTransaction();
+  }
 
   try {
     const sender = await Account.findOne({ vpa: instruction.senderVpa }).session(session);
@@ -36,7 +43,9 @@ export async function settle(instruction, packetHash, bridgeNodeId, hopCount) {
         `Insufficient balance: ${sender.vpa} has ₹${senderBalance}, tried to send ₹${amount}`
       );
       const tx = await recordRejected(instruction, packetHash, bridgeNodeId, hopCount, session);
-      await session.commitTransaction();
+      if (!global.useMockDb) {
+        await session.commitTransaction();
+      }
       return tx;
     }
 
@@ -86,18 +95,24 @@ export async function settle(instruction, packetHash, bridgeNodeId, hopCount) {
       { session }
     );
 
-    await session.commitTransaction();
+    if (!global.useMockDb) {
+      await session.commitTransaction();
+    }
 
     console.log(
       `SETTLED ₹${amount} from ${sender.vpa} to ${receiver.vpa} (packetHash=${packetHash.substring(0, 12)}..., bridge=${bridgeNodeId}, hops=${hopCount})`
     );
 
-    return tx[0];
+    return tx[0] || tx;
   } catch (err) {
-    await session.abortTransaction();
+    if (!global.useMockDb) {
+      await session.abortTransaction();
+    }
     throw err;
   } finally {
-    session.endSession();
+    if (!global.useMockDb) {
+      session.endSession();
+    }
   }
 }
 

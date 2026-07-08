@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { AccountMock } from './dbMock.js';
 
 const accountSchema = new mongoose.Schema(
   {
@@ -18,4 +19,13 @@ const accountSchema = new mongoose.Schema(
   }
 );
 
-export const Account = mongoose.model('Account', accountSchema);
+const RealAccount = mongoose.model('Account', accountSchema);
+
+export const Account = new Proxy(RealAccount, {
+  get(target, prop) {
+    if (global.useMockDb) {
+      return AccountMock[prop];
+    }
+    return target[prop];
+  }
+});

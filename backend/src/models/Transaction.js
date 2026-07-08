@@ -28,7 +28,18 @@ const transactionSchema = new mongoose.Schema(
   }
 );
 
-export const Transaction = mongoose.model('Transaction', transactionSchema);
+import { TransactionMock, nextTransactionIdMock } from './dbMock.js';
+
+const RealTransaction = mongoose.model('Transaction', transactionSchema);
+
+export const Transaction = new Proxy(RealTransaction, {
+  get(target, prop) {
+    if (global.useMockDb) {
+      return TransactionMock[prop];
+    }
+    return target[prop];
+  }
+});
 
 const counterSchema = new mongoose.Schema({
   _id: { type: String, required: true },
@@ -38,6 +49,9 @@ const counterSchema = new mongoose.Schema({
 const Counter = mongoose.model('Counter', counterSchema);
 
 export async function nextTransactionId() {
+  if (global.useMockDb) {
+    return nextTransactionIdMock();
+  }
   const counter = await Counter.findOneAndUpdate(
     { _id: 'transaction' },
     { $inc: { seq: 1 } },
